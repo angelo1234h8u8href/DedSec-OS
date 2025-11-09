@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DedSec OS</title>
+    <style>
+        body {
+            background-color: #0d0d0d;
+            color: #00ff41;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 14px;
+            /* Ridotto per una migliore leggibilità su mobile */
+            line-height: 1.5;
+        }
+
+        #terminal {
+            padding: 15px;
+            height: 95vh;
+            overflow-y: auto;
+            border: 1px solid #00ff41;
+            box-shadow: 0 0 10px #00ff41;
+        }
+
+        #output div {
+            white-space: pre-wrap;
+        }
+
+        .input-line {
+            display: flex;
+        }
+
+        .prompt {
+            margin-right: 8px;
+        }
+
+        #commandInput {
+            background-color: transparent;
+            border: none;
+            color: #00ff41;
+            font-family: inherit;
+            font-size: inherit;
+            width: 100%;
+            font-size: 16px;
+            /* Previene lo zoom automatico su iOS quando si mette a fuoco l'input */
+        }
+
+        #commandInput:focus {
+            outline: none;
+        }
+
+        .error {
+            color: #ff4141;
+        }
+
+        .html-content {
+            color: #87ceeb;
+            /* Un colore diverso per l'HTML per simulare il syntax highlighting */
+        }
+
+        /* Stili per la finestra dell'app simulata */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: none;
+            /* Nascosto di default */
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .app-window {
+            max-width: 350px;
+            /* Larghezza massima */
+            width: 90%;
+            /* Usa il 90% della larghezza dello schermo */
+            max-height: 85vh;
+            /* Altezza massima per non coprire tutto lo schermo */
+            background: #1e1e1e;
+            border: 1px solid #00ff41;
+            box-shadow: 0 0 20px rgba(0, 255, 65, 0.5);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .app-title-bar {
+            background: #333;
+            padding: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: move;
+        }
+
+        .close-button {
+            cursor: pointer;
+            font-weight: bold;
+            color: #ff4141;
+        }
+
+        .app-content {
+            flex-grow: 1;
+            background-color: #42a5f5;
+            /* Colore della AppBar di Flutter */
+            padding: 15px;
+            color: white;
+            text-align: center;
+            font-family: 'Roboto', sans-serif;
+            /* Font simile a quello di Flutter */
+        }
+    </style>
+</head>
+
+<body>
+    <div id="terminal">
+        <div id="output"></div>
+        <div class="input-line">
+            <span class="prompt">&gt;</span>
+            <input type="text" id="commandInput" autofocus autocomplete="off">
+        </div>
+    </div>
+
+    <!-- Finestra dell'App simulata -->
+    <div id="appModal" class="modal-overlay">
+        <div class="app-window">
+            <div class="app-title-bar">
+                <span id="appTitle">Flutter App</span>
+                <span id="closeAppButton" class="close-button">X</span>
+            </div>
+            <div class="app-content">
+                <h1>Hello, World!</h1>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const output = document.getElementById('output');
+        const commandInput = document.getElementById('commandInput');
+
+        // Funzione per scrivere nel nostro terminale finto
+        function printToTerminal(message, className = '') {
+            const line = document.createElement('div');
+            line.className = className;
+            line.textContent = message;
+            output.appendChild(line);
+            // Scrolla fino in fondo
+            output.parentElement.scrollTop = output.parentElement.scrollHeight;
+        }
+
+        // Sovrascriviamo console.log e console.error per stampare nel nostro terminale
+        const originalConsoleLog = console.log;
+        const originalConsoleError = console.error;
+        console.log = (message) => {
+            originalConsoleLog(message); // Manteniamo il log originale
+            printToTerminal(message);
+        };
+        console.error = (message) => {
+            originalConsoleError(message); // Manteniamo il log originale
+            printToTerminal(message, 'error');
+        };
+
+        // --- File System Virtuale ---
+        const fileSystem = {
+            '/': {
+                type: 'dir',
+                content: {
+                    'home': {
+                        type: 'dir',
+                        content: {
+                            'scripts': {
+                                type: 'dir',
+                                content: {
+                                    'index.html': {
+                                        type: 'file',
+                                        content: '<html>\n  <head><title>Pagina Segreta</title></head>\n  <body>\n    <h1>Accesso Riuscito</h1>\n    <p>Le chiavi del server sono: <strong>8A-7B-C9-D6</strong></p>\n  </body>\n</html>'
+                                    },
+                                    'login.js': {
+                                        type: 'file',
+                                        content: 'console.log("Esecuzione di login.js...");\nconst password = "12345";\nif (password === "12345") {\n  console.log("Login simulato riuscito!");\n} else {\n  console.error("Password errata nello script.");\n}',
+                                        executable: true
+                                    },
+                                    'config.hxml': { type: 'file', content: '-lib hxnodejs\n-main Main\n-js main.js' }
+                                }
+                            }
+                        }
+                    },
+                    'etc': {
+                        type: 'dir', protected: true,
+                        content: {
+                            'shadow.db': {
+                                type: 'file',
+                                content: 'root:CerebrumHACK\nuser:12345',
+                                permissions: 'root'
+                            },
+                            'hosts': {
+                                type: 'file',
+                                content: '127.0.0.1 localhost\n192.168.1.10 main.server.net'
+                            }
+                        }
+                    },
+                    'logs': {
+                        type: 'dir', protected: true,
+                        content: {
+                            'access.log': {
+                                type: 'file',
+                                content: 'WARN: Failed login attempt from 1.3.3.7'
+                            }
+                        }
+                    },
+                    'tmp': {
+                        type: 'dir',
+                        content: {}
+                    }
+                }
+            }
+        };
+
+        // Stato del gioco
+        let gameState = {
+            hasRootAccess: false,
+            currentPath: '/'
+        };
+
+        // Rete virtuale con dispositivi
+        const virtualNetwork = {
+            '192.168.1.1': {
+                hostname: 'gateway.router', status: 'ONLINE',
+                ports: { 80: 'HTTP - Admin Panel', 443: 'HTTPS - Admin Panel' }
+            },
+            '192.168.1.10': {
+                hostname: 'main.server.net', status: 'ONLINE',
+                ports: { 21: 'FTP', 22: 'SSH', 80: 'HTTP - Apache', 3306: 'MySQL' }
+            },
+            '192.168.1.34': {
+                hostname: 'workstation-dev', status: 'ONLINE',
+                ports: { 22: 'SSH', 3000: 'Node.js Dev Server', 8080: 'Web App' }
+            },
+            '192.168.1.55': {
+                hostname: 'fileshare-nas', status: 'OFFLINE',
+                ports: { 21: 'FTP', 445: 'SMB' }
+            },
+            '192.168.1.101': {
+                hostname: 'iot-camera', status: 'ONLINE',
+                ports: { 80: 'HTTP - Web Interface', 554: 'RTSP - Video Stream' }
+            }
+        };
+
+        // Aggiorna il prompt nel DOM
+        const promptElement = document.querySelector('.prompt');
+        function updatePrompt() {
+            promptElement.textContent = `root@dedsec:${gameState.currentPath}# `;
+        }
+
+        // 1. Registro dei comandi
+        const commands = {
+            netscan: () => {
+                console.log('Avvio scansione della rete locale (192.168.1.0/24)...');
+                commandInput.disabled = true;
+                setTimeout(() => {
+                    console.log('Scansione completata. Dispositivi trovati:');
+                    console.log('IP Address         Hostname             Status');
+                    console.log('------------------ -------------------- --------');
+                    Object.entries(virtualNetwork).forEach(([ip, device]) => {
+                        const ipPadded = ip.padEnd(18, ' ');
+                        const hostPadded = device.hostname.padEnd(20, ' ');
+                        console.log(`${ipPadded} ${hostPadded} ${device.status}`);
+                    });
+                    commandInput.disabled = false;
+                    commandInput.focus();
+                }, 2500);
+            },
+            scan: (targetIp) => {
+                if (!targetIp) {
+                    console.error('Uso: scan <indirizzo_ip>');
+                    return;
+                }
+
+                const device = virtualNetwork[targetIp];
+                if (!device) {
+                    console.error(`scan: Host sconosciuto: ${targetIp}`);
+                    return;
+                }
+
+                if (device.status === 'OFFLINE') {
+                    console.error(`scan: Impossibile raggiungere l'host. ${targetIp} sembra essere offline.`);
+                    return;
+                }
+
+                console.log(`Avvio scansione porte su ${device.hostname} (${targetIp})...`);
+                commandInput.disabled = true;
+                setTimeout(() => {
+                    console.log('Scansione completata. Porte aperte:');
+                    Object.entries(device.ports).forEach(([port, service]) => {
+                        console.log(`  ${port.padEnd(5)} (${service})`);
+                    });
+                    commandInput.disabled = false;
+                    commandInput.focus();
+                }, 1500);
+            },
+            bruteforce: (targetIp) => {
+                if (!targetIp) {
+                    console.error('Uso: bruteforce <indirizzo_ip>');
+                    return;
+                }
+                console.log(`Inizio attacco bruteforce su ${targetIp}...`);
+                let i = 0;
+                const interval = setInterval(() => {
+                    console.log(`Tentativo con password: ${Math.random().toString(36).substring(2)}`);
+                    i++;
+                    if (i > 5) {
+                        clearInterval(interval);
+                        console.log('...Password trovata: CerebrumHACK');
+                    }
+                }, 500);
+            },
+            sudo: (password) => {
+                if (password === 'CerebrumHACK') {
+                    gameState.hasRootAccess = true;
+                    console.log('Accesso root garantito. Benvenuto, amministratore.');
+                } else {
+                    console.error('Password errata. Accesso negato.');
+                }
+            },
+            read: (filename) => {
+                const file = findPath(filename);
+                if (file && file.type === 'file') {
+                    if (file.permissions === 'root' && !gameState.hasRootAccess) {
+                        console.error(`read: Permesso negato per leggere '${filename}'`);
+                        return;
+                    }
+                    // Aggiungiamo un comportamento speciale per i file .html
+                    if (filename.endsWith('.html')) {
+                        printToTerminal('--- Inizio Contenuto HTML ---');
+                        printToTerminal(file.content, 'html-content');
+                        printToTerminal('--- Fine Contenuto HTML ---');
+                    } else {
+                        console.log(file.content);
+                    }
+                } else {
+                    console.error(`read: File non trovato: '${filename}'`);
+                }
+            },
+            ls: (path = '.') => {
+                const target = findPath(path);
+                if (target && target.type === 'dir') {
+                    const content = Object.keys(target.content);
+                    if (content.length === 0) {
+                        console.log(''); // Stampa una riga vuota se la directory è vuota
+                        return;
+                    }
+                    // Aggiunge una / alle directory per distinguerle
+                    const formattedContent = content.map(item => {
+                        return target.content[item].type === 'dir' ? `${item}/` : item;
+                    }).join('   ');
+                    console.log(formattedContent);
+                } else {
+                    console.error(`ls: Impossibile accedere a '${path}': Non è una directory.`);
+                }
+            },
+            cd: (path) => {
+                if (!path) {
+                    // `cd` senza argomenti porta a /
+                    gameState.currentPath = '/';
+                    updatePrompt();
+                    return;
+                }
+
+                const newPathObject = findPath(path, true);
+                if (newPathObject && newPathObject.type === 'dir') {
+                    // Normalizza il nuovo percorso
+                    const pathParts = (gameState.currentPath + '/' + path).split('/').filter(p => p);
+                    let finalParts = [];
+                    if (path.startsWith('/')) {
+                        // Percorso assoluto
+                        finalParts = path.split('/').filter(p => p);
+                    } else {
+                        // Percorso relativo
+                        finalParts = gameState.currentPath.split('/').filter(p => p);
+                        path.split('/').forEach(part => {
+                            if (part === '..') {
+                                finalParts.pop();
+                            } else if (part !== '.') {
+                                finalParts.push(part);
+                            }
+                        });
+                    }
+                    gameState.currentPath = '/' + finalParts.join('/');
+                    if (gameState.currentPath === '//') gameState.currentPath = '/';
+                    updatePrompt();
+                } else {
+                    console.error(`cd: Directory non trovata: '${path}'`);
+                }
+
+            },
+            upload: (filename) => {
+                if (!filename) {
+                    console.error('Uso: upload <nome_payload>');
+                    console.error('Payload disponibili: rootkit.sh');
+                    return;
+                }
+
+                if (gameState.currentPath !== '/tmp') {
+                    console.error('upload: Permesso negato. Puoi caricare file solo nella directory /tmp.');
+                    return;
+                }
+
+                if (filename === 'rootkit.sh') {
+                    const tmpDir = findPath('/tmp', true);
+                    if (tmpDir && tmpDir.type === 'dir') {
+                        tmpDir.content['rootkit.sh'] = {
+                            type: 'file',
+                            content: '#!/bin/sh\n\n# Questo script sfrutta una vulnerabilità nel kernel per ottenere i privilegi di root.\necho "Running exploit..."\nsetuid(0)\nsetgid(0)\necho "Root access granted!"',
+                            executable: true
+                        };
+                        console.log(`File '${filename}' caricato con successo in /tmp.`);
+                    }
+                } else {
+                    console.error(`Payload '${filename}' non riconosciuto.`);
+                }
+            },
+            execute: (filepath) => {
+                const file = findPath(filepath);
+                if (!file || file.type !== 'file') {
+                    console.error(`execute: File non trovato o non è un file: '${filepath}'.`);
+                    return;
+                }
+                if (!file.executable) {
+                    console.error(`execute: Impossibile eseguire '${filepath}'. Non è un file eseguibile.`);
+                    return;
+                }
+
+                // Gestione specifica per estensione
+                if (filepath.endsWith('rootkit.sh')) {
+                    console.log('Esecuzione di rootkit.sh...');
+                    gameState.hasRootAccess = true;
+                    console.log('Exploit riuscito. Accesso root garantito.');
+                } else if (filepath.endsWith('.js')) {
+                    console.log(`Esecuzione dello script Node.js simulato: ${filepath}`);
+                    try {
+                        // Eseguiamo il codice in un ambiente controllato (sandboxed)
+                        const sandboxedEval = new Function('console', file.content);
+                        sandboxedEval(console); // Passiamo solo la nostra console finta
+                    } catch (e) {
+                        console.error(`Errore durante l'esecuzione di ${filepath}: ${e.message}`);
+                    }
+                }
+            },
+            touch: (filename) => {
+                if (!filename || filename.includes('/')) {
+                    console.error('Uso: touch <nome_file> (il nome non può contenere "/").');
+                    return;
+                }
+                const currentDir = findPath(gameState.currentPath, true);
+                if (currentDir.content[filename]) {
+                    // In Unix, touch aggiorna il timestamp. Qui, non facciamo nulla.
+                    return;
+                }
+                currentDir.content[filename] = { type: 'file', content: '' };
+                console.log(`File '${filename}' creato.`);
+            },
+            mkdir: (dirname) => {
+                if (!dirname || dirname.includes('/')) {
+                    console.error('Uso: mkdir <nome_directory> (il nome non può contenere "/").');
+                    return;
+                }
+                const currentDir = findPath(gameState.currentPath, true);
+                if (currentDir.content[dirname]) {
+                    console.error(`mkdir: Impossibile creare la directory '${dirname}': File già esistente.`);
+                    return;
+                }
+                currentDir.content[dirname] = { type: 'dir', content: {} };
+                console.log(`Directory '${dirname}' creata.`);
+            },
+            rm: (path) => {
+                if (!path) {
+                    console.error('Uso: rm <file_o_directory>');
+                    return;
+                }
+                const target = findPath(path);
+                if (!target) {
+                    console.error(`rm: Impossibile rimuovere '${path}': File o directory non trovata.`);
+                    return;
+                }
+                if (target.protected) {
+                    console.error(`rm: Permesso negato. '${path}' è una directory di sistema protetta.`);
+                    return;
+                }
+                if (target.type === 'dir' && Object.keys(target.content).length > 0) {
+                    console.error(`rm: Impossibile rimuovere '${path}': La directory non è vuota.`);
+                    return;
+                }
+
+                const parentPath = path.substring(0, path.lastIndexOf('/')) || gameState.currentPath;
+                const parentDir = findPath(parentPath, true);
+                const targetName = path.substring(path.lastIndexOf('/') + 1);
+                delete parentDir.content[targetName];
+                console.log(`'${path}' rimosso.`);
+            },
+            echo: (...args) => {
+                const redirectIndex = args.indexOf('>');
+                if (redirectIndex === -1 || redirectIndex === 0 || redirectIndex === args.length - 1) {
+                    console.error('Uso: echo "testo da scrivere" > nomefile.txt');
+                    return;
+                }
+                const content = args.slice(0, redirectIndex).join(' ');
+                const filename = args[redirectIndex + 1];
+
+                const currentDir = findPath(gameState.currentPath, true);
+                // Sovrascrive o crea il file
+                currentDir.content[filename] = { type: 'file', content: content };
+                console.log(`Contenuto scritto in '${filename}'.`);
+            },
+            download: (filepath) => {
+                // Controlla se l'utente è su un dispositivo mobile
+                const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+                if (isMobile) {
+                    console.log("Sorry , download è un opzione per pc :)");
+                    console.log("Usa il comando 'extract' per scaricare su questo dispositivo.");
+                    return;
+                }
+
+                if (!filepath) {
+                    console.error('Uso: download <percorso_file>');
+                    return;
+                }
+                const file = findPath(filepath);
+                if (!file || file.type !== 'file') {
+                    console.error(`download: File non trovato o non è un file: '${filepath}'`);
+                    return;
+                }
+
+                // Metodo per download istantaneo, ideale per PC.
+                const blob = new Blob([file.content], { type: 'text/plain;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filepath.split('/').pop();
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                console.log(`Download di '${a.download}' avviato...`);
+            },
+            flutter: (subcommand, ...args) => {
+                if (!subcommand) {
+                    console.error('Comando Flutter incompleto. Prova: doctor, create, run, pub get');
+                    return;
+                }
+                switch (subcommand) {
+                    case 'doctor':
+                        console.log('Doctor summary (to see all details, run flutter doctor -v):');
+                        console.log('[✓] Flutter (Channel stable, 3.x.x, on DedSec OS, locale it-IT)');
+                        console.log('[✓] DedSec SDK version 1.0.0');
+                        console.log('[✓] Chrome (deve essere installato per lo sviluppo web)');
+                        console.log('[✓] Connected device (1 available)');
+                        console.log('[✓] HTTP Host Availability');
+                        console.log('• Nessun problema riscontrato!');
+                        break;
+                    case 'create':
+                        const appName = args[0];
+                        if (!appName) {
+                            console.error('Uso: flutter create <nome_app>');
+                            return;
+                        }
+                        console.log(`Creazione del progetto '${appName}'...`);
+                        commands.mkdir(appName);
+                        const appDir = findPath(`${gameState.currentPath === '/' ? '' : gameState.currentPath}/${appName}`, true);
+                        appDir.content['pubspec.yaml'] = { type: 'file', content: `name: ${appName}\ndescription: A new Flutter project.` };
+                        appDir.content['lib'] = { type: 'dir', content: { 'main.dart': { type: 'file', content: 'void main() => runApp(MyApp());' } } };
+                        console.log(`Progetto '${appName}' creato. Esegui 'cd ${appName}' per entrare nella directory.`);
+                        break;
+                    case 'run':
+                        const pubspecFile = findPath('pubspec.yaml');
+                        const mainDartFile = findPath('lib/main.dart');
+
+                        if (!pubspecFile || !mainDartFile) {
+                            console.error('Errore: Nessun progetto Flutter trovato in questa directory.');
+                            console.error('Assicurati che esistano "pubspec.yaml" e "lib/main.dart".');
+                            return;
+                        }
+
+                        // Estrae il nome dell'app dal pubspec.yaml
+                        const appNameFromYaml = pubspecFile.content.split('\n')
+                            .find(line => line.startsWith('name:'))
+                            .split(':')[1].trim();
+
+                        console.log(`Avvio di lib/main.dart su dispositivo simulato...`);
+                        setTimeout(() => {
+                            console.log(`Applicazione '${appNameFromYaml}' avviata.`);
+                            document.getElementById('appTitle').textContent = appNameFromYaml;
+                            document.getElementById('appModal').style.display = 'flex';
+                            commandInput.disabled = true; // Disabilita l'input del terminale
+                        }, 2000);
+                        break;
+                    case 'pub':
+                        if (args[0] === 'get') {
+                            console.log('Running "flutter pub get" in my_app...');
+                            setTimeout(() => console.log('Dipendenze installate!'), 1500);
+                        }
+                        break;
+                    default:
+                        console.error(`Comando flutter non riconosciuto: ${subcommand}`);
+                }
+            },
+            dual: (target, mode) => {
+                console.log('Inizializzazione protocollo D.U.A.L...');
+                if (!target || !mode) {
+                    console.error('Uso: dual <file_target> <silent|chaos>');
+                    console.log('  silent: Estrae dati in modo furtivo.');
+                    console.log('  chaos:  Innesca un attacco caotico e distruttivo.');
+                    return;
+                }
+
+                const file = findPath(target);
+                if (!file || file.type !== 'file') {
+                    console.error(`D.U.A.L. Error: Target '${target}' non valido.`);
+                    return;
+                }
+
+                if (mode === 'silent') {
+                    console.log(`[SILENT MODE] Estrazione dati da '${target}'...`);
+                    setTimeout(() => {
+                        console.log('--- Dati Estratti ---');
+                        console.log(file.content);
+                        console.log('--- Fine Estrazione ---');
+                        console.log('Operazione completata. Nessuna traccia lasciata nel sistema.');
+                    }, 1500);
+                } else if (mode === 'chaos') {
+                    console.log(`[CHAOS MODE] Attacco a '${target}' in corso... Prepararsi al disordine.`);
+                    commandInput.disabled = true;
+                    let chaosCount = 0;
+                    const chaosInterval = setInterval(() => {
+                        const randomChars = Array(30).fill(0).map(() => Math.random().toString(36)[2]).join('');
+                        const messages = ['SYSTEM CORRUPTION', 'KERNEL PANIC', 'DATA LEAK', 'DELETING...'];
+                        printToTerminal(`${messages[chaosCount % 4]} :: ${randomChars}`, 'error');
+                        chaosCount++;
+                        if (chaosCount > 10) {
+                            clearInterval(chaosInterval);
+                            console.log(`...Corruzione di '${target}' completata.`);
+                            // Manipola e distrugge il file
+                            file.content = 'CORRUPTED_DATA_$$$_CHAOS_WAS_HERE';
+                            commands.rm(target);
+                            console.log('Attacco terminato. Il bersaglio è stato neutralizzato.');
+                            commandInput.disabled = false;
+                            commandInput.focus();
+                        }
+                    }, 200);
+                } else {
+                    console.error(`Modalità D.U.A.L. non riconosciuta: '${mode}'. Usare 'silent' o 'chaos'.`);
+                }
+            },
+            extract: (filepath, option) => {
+                if (!filepath) {
+                    console.error('Uso: extract <percorso_file> [--base64]');
+                    console.log('  --base64 : Stampa il contenuto del file codificato in Base64.');
+                    return;
+                }
+                const file = findPath(filepath);
+                if (!file || file.type !== 'file') {
+                    console.error(`extract: File non trovato o non è un file: '${filepath}'`);
+                    return;
+                }
+
+                const filename = filepath.split('/').pop();
+
+                if (option === '--base64') {
+                    console.log(`--- Contenuto di '${filename}' codificato in Base64 ---`);
+                    try {
+                        const base64Content = btoa(unescape(encodeURIComponent(file.content)));
+                        console.log(base64Content);
+                    } catch (e) {
+                        console.error(`Errore durante la codifica Base64: ${e.message}`);
+                    }
+                    console.log(`--- Fine del contenuto ---`);
+                } else {
+                    // Crea un link cliccabile, metodo più affidabile per mobile.
+                    const blob = new Blob([file.content], { type: 'text/plain;charset=utf-8' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = filename;
+                    a.textContent = `[ Clicca qui per estrarre ${filename} ]`;
+                    a.style.color = '#87ceeb';
+                    a.style.textDecoration = 'underline';
+
+                    const line = document.createElement('div');
+                    line.appendChild(a);
+                    output.appendChild(line);
+                }
+            },
+            help: () => {
+                console.log('Comandi disponibili:');
+                console.log('  ls [path]             - Lista file e directory.');
+                console.log('  cd <path>             - Cambia directory (usa ".." per salire).');
+                console.log('  read <file>           - Legge il contenuto di un file.');
+                console.log('  touch <file>          - Crea un file vuoto.');
+                console.log('  mkdir <dir>           - Crea una directory.');
+                console.log('  echo "txt" > file    - Scrive testo in un file.');
+                console.log('  rm <path>             - Rimuove un file o una directory vuota.');
+                console.log('  download <file>       - Scarica un file istantaneamente (solo PC).');
+                console.log('  extract <file>        - Estrae un file creando un link (compatibile con mobile).');
+                console.log('  flutter <cmd>         - Esegue comandi Flutter simulati (es: doctor, create).');
+                console.log('  netscan               - Scansiona la rete locale per dispositivi attivi.');
+                console.log('  dual <file> <mode>    - Esegue un attacco a doppia modalità (silent/chaos).');
+                console.log('  scan <ip>             - Scansiona un IP per porte aperte.');
+                console.log('  bruteforce <ip>       - Tenta un attacco di forza bruta su un IP.');
+                console.log('  sudo <password>       - Ottieni privilegi di amministratore.');
+                console.log('  upload <payload>      - Carica un payload nella directory /tmp.');
+                console.log('  execute <file>        - Esegue un payload caricato.');
+                console.log('  clear                 - Pulisce il terminale.');
+                console.log('  help                  - Mostra questo messaggio.');
+            },
+            clear: () => {
+                output.innerHTML = '';
+            }
+        };
+
+        // --- Gestione Audio ---
+        let audioCtx;
+        // Funzione per generare un suono di "click" della tastiera
+        function playKeySound() {
+            // L'AudioContext viene creato solo al primo input dell'utente per rispettare le policy dei browser
+            if (!audioCtx) {
+                try {
+                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                } catch (e) {
+                    console.error("Web Audio API non supportata in questo browser.");
+                    return; // Interrompe se l'API non è disponibile
+                }
+            }
+
+            // Se l'audio context è stato sospeso (policy di autoplay), riprendilo
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+
+            gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime); // Volume
+            oscillator.frequency.setValueAtTime(1500, audioCtx.currentTime); // Tono acuto
+            oscillator.start(audioCtx.currentTime);
+            oscillator.stop(audioCtx.currentTime + 0.03); // Durata molto breve
+        }
+
+        // --- Funzioni di utilità per il File System ---
+        function findPath(path, returnDir = false) {
+            if (!path) return null;
+
+            let resolutionPath;
+            if (path.startsWith('/')) {
+                // Percorso assoluto
+                resolutionPath = path;
+            } else {
+                // Percorso relativo: unisce il percorso corrente con quello fornito
+                resolutionPath = (gameState.currentPath === '/' ? '' : gameState.currentPath) + '/' + path;
+            }
+
+            // Risolve i segmenti '..' e '.' per ottenere un percorso canonico
+            const resolvedParts = [];
+            resolutionPath.split('/').forEach(part => {
+                if (part === '..') {
+                    resolvedParts.pop(); // Rimuove l'ultimo segmento
+                } else if (part !== '' && part !== '.') {
+                    resolvedParts.push(part);
+                }
+            });
+
+            let current = fileSystem['/'];
+            for (const part of resolvedParts) {
+                if (current && current.type === 'dir' && current.content[part]) {
+                    current = current.content[part];
+                } else {
+                    return null; // Parte del percorso non trovata
+                }
+            }
+            return current;
+        }
+
+        // 2. Funzione "esecutore" che chiama i comandi in modo sicuro.
+        function executeCommand(commandName, ...args) {
+            // Gestione del comando 'sudo' che esegue un altro comando
+            if (commandName === 'sudo' && args.length > 1 && commands[args[0]]) {
+                console.error('Funzionalità "sudo <comando>" non ancora implementata.');
+                console.error('Usa "sudo <password>" per ottenere i privilegi di root.');
+            } else if (commands[commandName]) {
+                return commands[commandName](...args);
+            } else {
+                console.error(`Comando non trovato: ${commandName}`);
+                console.error(`Digita 'help' per la lista dei comandi.`);
+            }
+        }
+
+        // 3. Gestione dell'input dell'utente
+        commandInput.addEventListener('keydown', (e) => {
+            // Tasti che non dovrebbero produrre suono (tasti modificatori, navigazione, etc.)
+            const nonSoundingKeys = ['Enter', 'Shift', 'Control', 'Alt', 'Meta', 'CapsLock', 'Tab', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
+
+            if (!nonSoundingKeys.includes(e.key)) {
+                playKeySound();
+            }
+
+            if (e.key === 'Enter') {
+                const inputValue = commandInput.value.trim();
+                if (inputValue) {
+                    printToTerminal(`${promptElement.textContent}${inputValue}`); // Mostra il comando digitato
+
+                    // Gestione di input complessi come echo "testo" > file
+                    // Per ora, usiamo una semplice divisione per spazi
+                    const parts = inputValue.match(/(?:[^\s"]+|"[^"]*")+/g) || [];
+                    const commandName = parts[0];
+                    let args = parts.slice(1).map(arg => {
+                        // Rimuove le virgolette se presenti
+                        if (arg.startsWith('"') && arg.endsWith('"')) {
+                            return arg.slice(1, -1);
+                        }
+                        // Converte argomenti in numeri o booleani se possibile
+                        if (!isNaN(arg) && arg.trim() !== '') return parseFloat(arg);
+                        if (arg === 'true') return true;
+                        if (arg === 'false') return false;
+                        return arg;
+                    });
+
+                    executeCommand(commandName, ...args);
+                }
+                commandInput.value = ''; // Pulisce l'input
+            }
+        });
+
+        // Gestione chiusura app
+        document.getElementById('closeAppButton').addEventListener('click', () => {
+            document.getElementById('appModal').style.display = 'none';
+            commandInput.disabled = false; // Riabilita l'input
+            commandInput.focus(); // Rimette il focus sul terminale
+        });
+
+        // Messaggio di benvenuto
+        printToTerminal('Benvenuto in DedSec OS v1.0');
+        printToTerminal("Digita 'help' per vedere la lista dei comandi disponibili.");
+        updatePrompt();
+    </script>
+
+</html>
